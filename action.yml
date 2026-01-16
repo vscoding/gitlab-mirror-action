@@ -1,0 +1,94 @@
+name: "Mirror Repository to GitLab (SSH)"
+description: "Mirror a GitHub repository branch to a GitLab repo via SSH"
+author: "tech@intellij.io"
+
+inputs:
+  gitlab-ssh-private-key:
+    description: "SSH private key with access to the GitLab repository (recommended: deploy key)"
+    required: true
+  gitlab-ssh-remote:
+    description: "GitLab SSH remote (e.g. git@gitlab.com:group/repo.git)"
+    required: true
+  gitlab-ssh-host:
+    description: "GitLab SSH host"
+    required: false
+    default: "gitlab.com"
+  gitlab-ssh-port:
+    description: "GitLab SSH port"
+    required: false
+    default: "22"
+  source-branch:
+    description: "Source branch to push from"
+    required: false
+    default: "main"
+  target-branch:
+    description: "Target branch on GitLab to push to"
+    required: false
+    default: "main"
+  strict-remote-check:
+    description: "Whether to enforce remote starts with 'git@gitlab.com:'"
+    required: false
+    default: "true"
+  checkout:
+    description: "Whether to checkout repository (full history)"
+    required: false
+    default: "true"
+  fetch-depth:
+    description: "Checkout fetch-depth (0 = full history)"
+    required: false
+    default: "0"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout repository (full history)
+      if: ${{ inputs.checkout == 'true' }}
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: ${{ inputs.fetch-depth }}
+
+    - name: Push branch to GitLab
+      shell: bash
+      run: |
+        set -Eeuo pipefail
+
+        GITLAB_SSH_PRIVATE_KEY="${{ inputs.gitlab-ssh-private-key }}"
+        GITLAB_SSH_REMOTE="${{ inputs.gitlab-ssh-remote }}"
+        GITLAB_SSH_HOST="${{ inputs.gitlab-ssh-host }}"
+        GITLAB_SSH_PORT="${{ inputs.gitlab-ssh-port }}"
+        SOURCE_BRANCH="${{ inputs.source-branch }}"
+        TARGET_BRANCH="${{ inputs.target-branch }}"
+        STRICT_REMOTE_CHECK="${{ inputs.strict-remote-check }}"
+
+        if [[ -z "${GITLAB_SSH_PRIVATE_KEY:-}" || -z "${GITLAB_SSH_REMOTE:-}" ]]; then
+          echo "Missing SSH configuration: gitlab-ssh-private-key or gitlab-ssh-remote"
+          exit 1
+        fi
+
+        if [[ "${STRICT_REMOTE_CHECK}" == "true" ]]; then
+          # Strong validation: only allow GitLab.com SSH remote
+          if [[ ! "${GITLAB_SSH_REMOTE}" =~ ^git@gitlab\.com: ]]; then
+            echo "Invalid gitlab-ssh-remote: must start with 'git@gitlab.com:'"
+            exit 1
+          fi
+        fi
+
+        mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
+
+        # Use ED25519 filename by default; Git will pick it up automatically
+        echo "$GITLAB_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+        chmod 600 ~/.ssh/id_ed25519
+
+        host="${GITLAB_SSH_HOST:-gitlab.com}"
+        port="${GITLAB_SSH_PORT:-22}"
+
+        # Preload host key to avoid interactive prompt
+        ssh-keyscan -p "$port" "$host" >> ~/.ssh/known_hosts
+        chmod 644 ~/.ssh/known_hosts
+
+        git remote remove gitlab 2>/dev/null || true
+        git remote add gitlab "$GITLAB_SSH_REMOTE"
+
+        # Mirror only the chosen branch
+        git push gitlab "${SOURCE_BRANCH}:${TARGET_BRANCH}"
