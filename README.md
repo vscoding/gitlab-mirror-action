@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Mirror to GitLab
-        uses: your-org/gitlab-mirror-action@v1
+        uses: vscoding/gitlab-mirror-action@v1
         with:
           gitlab-ssh-private-key: ${{ secrets.GITLAB_SSH_PRIVATE_KEY }}
           gitlab-ssh-remote: ${{ vars.GITLAB_SSH_REMOTE }}
