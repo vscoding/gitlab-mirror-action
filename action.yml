@@ -1,6 +1,6 @@
 name: "Mirror Repository to GitLab (SSH)"
 description: "Mirror a GitHub repository branch to a GitLab repo via SSH"
-author: "tech@intellij.io"
+author: "dev@intellij.io"
 
 inputs:
   gitlab-ssh-private-key:
@@ -43,7 +43,7 @@ runs:
   steps:
     - name: Checkout repository (full history)
       if: ${{ inputs.checkout == 'true' }}
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         fetch-depth: ${{ inputs.fetch-depth }}
 
